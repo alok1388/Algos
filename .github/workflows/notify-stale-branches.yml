@@ -1,91 +1,28 @@
-name: Notify Branch Owners
+# This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time.
+#
+# You can adjust the behavior by modifying this file.
+# For more information, see:
+# https://github.com/actions/stale
+name: Mark stale issues and pull requests
 
 on:
   schedule:
-    - cron: '04 23 * * *'  # Runs every day at 10:00 AM UTC
+    - cron: '35 23 * * *'
 
 jobs:
-  notify-branch-owners:
+  stale:
+
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Get all branches
-        id: get_branches
-        run: |
-          branches=$(git for-each-ref --format='%(refname:short)' refs/heads/)
-          echo "::set-output name=branches::$branches"
-          echo "DEBUG: Found branches: $branches"
-
-      - name: Check branches and send notifications via Symphony
-        run: |
-          for branch in ${{ steps.get_branches.outputs.branches }}; do
-            echo "DEBUG: Processing branch: $branch"
-
-            first_commit=$(git rev-list --max-parents=0 HEAD)
-            first_commit_date=$(git show -s --format=%ci $first_commit)
-            echo "DEBUG: First commit date for branch $branch: $first_commit_date"
-
-            # Check if the branch has a PR and whether it has been merged into master
-            pr_info=$(gh pr list --head "$branch" --json state,mergeable --jq '.[]')
-            pr_exists=$(echo "$pr_info" | jq -r '.state')
-            pr_mergeable=$(echo "$pr_info" | jq -r '.mergeable')
-
-            echo "DEBUG: PR state for branch $branch: $pr_exists"
-            echo "DEBUG: PR mergeable for branch $branch: $pr_mergeable"
-
-            # Get branch owner email from user profile (assuming employee ID is stored in the profile)
-            employee_id=$(git log --format='%ae' --reverse | head -n 1 | sed 's/@.*//') # Extracting ID assuming it's the part before '@'
-            echo "DEBUG: Extracted employee ID for branch $branch: $employee_id"
-
-            # Calculate date difference
-            days_diff=$(( ( $(date +%s) - $(date +%s -d "$first_commit_date") )/(60*60*24) ))
-            echo "DEBUG: Days since first commit for branch $branch: $days_diff"
-
-            # Function to send message to Symphony
-            send_to_symphony() {
-              message=$1
-              payload=$(cat <<EOF
-              {
-                "message": {
-                  "format": "text",
-                  "content": "$message"
-                }
-              }
-              EOF
-            )  
-            echo "Sending payload to Symphony: $payload"
-            
-            response=$(curl -X POST "https://symphony.yourcompany.com/v1/employee/$employee_id/message" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $SYMPHONY_API_TOKEN" \
-            -d "$payload" --write-out "HTTPSTATUS:%{http_code}" --silent --output /dev/null)
-            
-            http_status=$(echo $response | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-            echo "Symphony API response status for branch $branch: $http_status"
-            
-            if [ "$http_status" -ne 200 ]; then
-            echo "Failed to send notification to Symphony for branch $branch. HTTP status: $http_status"
-            else
-            echo "Notification sent successfully to Symphony for branch $branch."
-            fi
-            }
-
-        # Condition 1: No PR exists and first commit is older than 10 days
-          if [[ -z "$pr_exists" && "$days_diff" -gt 10 ]]; then
-          message="Branch $branch has no PR and the first commit is older than 10 days. Please create a pull request."
-          echo "Condition met for no PR and old commit, sending notification."
-          send_to_symphony "$message"
-          fi
-          
-          # Condition 2: PR exists but has not been merged into master and first commit is older than 10 days
-          if [[ "$pr_exists" == "OPEN" && "$pr_mergeable" == "true" && "$days_diff" -gt 10 ]]; then
-          message="Branch $branch has an open PR that has not yet been merged into the master branch, and the first commit is older than 10 days. Please review and merge the pull request."
-          echo "Condition met for open PR not merged and old commit, sending notification."
-          send_to_symphony "$message"
-          fi
-          done
-        env:
-          SYMPHONY_API_TOKEN: ${{ secrets.SYMPHONY_API_TOKEN }}
-          ACTIONS_RUNNER_DEBUG: true
+      - uses: actions/stale@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: 'Stale issue message'
+          stale-pr-message: 'Stale pull request message'
+          stale-issue-label: 'no-issue-activity'
+          stale-pr-label: 'no-pr-activity'
+          days-before-stale: 0
