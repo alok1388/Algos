@@ -1,8 +1,6 @@
 name: Notify Branch Owners
 
-on:
-  schedule:
-    - cron: '17 12 * * *'  # Runs every day at 10:00 AM UTC
+on: push
 
 jobs:
   notify-branch-owners:
