@@ -46,12 +46,12 @@ jobs:
               if [[ -z "$pr_exists" && "$days_diff" -lt 10 ]]; then
               message="Branch $branch has no PR and the first commit is older than 10 days. Please create a pull request."
               echo "DEBUG: Condition met for no PR and old commit, sending notification."
-              send_to_symphony "$message"
+              # send_to_symphony "$message"
               fi
     
               # Condition 2: PR exists but has not been merged into master and first commit is older than 10 days
               if [[ "$pr_exists" == "OPEN" && "$pr_mergeable" == "true" && "$days_diff" -lt 10 ]]; then
               message="Branch $branch has an open PR that has not yet been merged into the master branch, and the first commit is older than 10 days. Please review and merge the pull request."
               echo "DEBUG: Condition met for open PR not merged and old commit, sending notification."
-              send_to_symphony "$message"
+              # send_to_symphony "$message"
               fi
