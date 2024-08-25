@@ -2,7 +2,7 @@ name: Notify Branch Owners
 
 on:
   schedule:
-    - cron: '0 10 * * *'  # Runs every day at 10:00 AM UTC
+    - cron: '17 12 * * *'  # Runs every day at 10:00 AM UTC
 
 jobs:
   notify-branch-owners:
