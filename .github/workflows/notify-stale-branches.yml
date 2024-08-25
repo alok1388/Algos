@@ -19,6 +19,7 @@ jobs:
       - name: Check branches and send notifications via Symphony
         env:
           BRANCHES: ${{ steps.get_branches.outputs.branches }}
+          GH_TOKEN: ${{ github.token }}
         id: publish_branches
         run: |
           # Write-Output "The branches are $env:BRANCHES"
