@@ -13,8 +13,8 @@ jobs:
         id: get_branches
         run: |
           branches=$(git branch -r --format='%(refname:short)')  | tr '\n' ' '
-          echo "branches::$branches" >> $GITHUB_OUTPUT
-          echo "DEBUG: Found branches: $GITHUB_OUTPUT"
+          echo "branches=$branches" >> $GITHUB_OUTPUT
+          echo "DEBUG: Found branches: $GITHUB_OUTPUT.branches"
 
       - name: Check branches and send notifications via Symphony
         env:
