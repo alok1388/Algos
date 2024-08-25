@@ -1,28 +1,19 @@
-# This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time.
-#
-# You can adjust the behavior by modifying this file.
-# For more information, see:
-# https://github.com/actions/stale
-name: Mark stale issues and pull requests
+name: Notify Branch Owners
 
 on:
   schedule:
-    - cron: '35 23 * * *'
+    - cron: '0 10 * * *'  # Runs every day at 10:00 AM UTC
 
 jobs:
-  stale:
-
+  notify-branch-owners:
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: write
-
     steps:
-      - uses: actions/stale@v5
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          stale-issue-message: 'Stale issue message'
-          stale-pr-message: 'Stale pull request message'
-          stale-issue-label: 'no-issue-activity'
-          stale-pr-label: 'no-pr-activity'
-          days-before-stale: 0
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Get all branches
+        id: get_branches
+        run: |
+          branches=$(git for-each-ref --format='%(refname:short)' refs/heads/)
+          echo "branches=$branches" >> $GITHUB_ENV
+          echo "DEBUG: Found branches: $branches"
