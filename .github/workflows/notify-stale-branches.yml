@@ -13,15 +13,14 @@ jobs:
         id: get_branches
         run: |
           branches=$(git branch --format='%(refname:short)')  | tr '\n' ' '
-          echo "branches=$branches" >> $GITHUB_OUTPUT
-          echo "DEBUG: Found branches: $GITHUB_OUTPUT"
+          "branches=$branches" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Check branches and send notifications via Symphony
         env:
           BRANCHES: ${{ steps.get_branches.outputs.branches }}
         id: publish_branches
         run: |
-          echo "DEBUG: Branches to process: $BRANCHES"
+          Write-Output "The branches are $env:BRANCHES"
           for branch in $BRANCHES ; do
             echo "DEBUG: Processing branch: $branch"
           
