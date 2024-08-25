@@ -12,7 +12,7 @@ jobs:
       - name: Get all branches
         id: get_branches
         run: |
-          branches=$(git branch -r --format='%(refname:short)' refs/heads/)
+          branches=$(git branch -r --format='%(refname:short)')
           echo "branches=$branches" >> $GITHUB_ENV
           echo "DEBUG: Found branches: $branches"
 
