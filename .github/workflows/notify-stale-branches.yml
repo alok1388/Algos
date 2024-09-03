@@ -12,7 +12,7 @@ jobs:
       - name: Get all branches
         id: get_branches
         run: |
-          branches=$(git branch -r | grep -v '\->' | sed 's/origin\///')  
+          branches=$(git branch -r | grep -v '\->' | sed '')  
           echo "branches=$branches" >> $GITHUB_OUTPUT
           echo ${{ steps.get_branches.outputs.branches }}
 
