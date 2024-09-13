@@ -23,7 +23,7 @@ jobs:
         id: publish_branches
         run: |
           # Write-Output "The branches are $env:BRANCHES"
-          for branch in $BRANCHES ; do
+          while IFS= read -r branch; do
             echo "DEBUG: Processing branch: $branch"
           
             first_commit=$(git rev-list --max-parents=0 HEAD)
@@ -59,4 +59,4 @@ jobs:
             echo "DEBUG: Condition met for open PR not merged and old commit, sending notification."
             # send_to_symphony "$message"
             fi
-          done
+          done <<< "${{ steps.get_branches.outputs.branches }}"
