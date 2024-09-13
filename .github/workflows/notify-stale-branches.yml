@@ -8,26 +8,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
 
       - name: Get all branches
         id: get_branches
         run: |
-          branches=$(git branch -r | grep -v '\->' | sed '')  
-          echo "branches=$branches" >> $GITHUB_OUTPUT
-          echo ${{ steps.get_branches.outputs.branches }}
+          branches=$(git branch -r | grep -v '\->' | sed 's/origin\///')
+          echo "branches<<EOF" >> $GITHUB_OUTPUT
+          echo "$branches" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Check branches and send notifications via Symphony
         env:
-          BRANCHES: ${{ steps.get_branches.outputs.branches }}
           GH_TOKEN: ${{ github.token }}
-        id: publish_branches
         run: |
-          # Write-Output "The branches are $env:BRANCHES"
           while IFS= read -r branch; do
             echo "DEBUG: Processing branch: $branch"
           
-            first_commit=$(git rev-list --max-parents=0 HEAD)
-            first_commit_date=$(git show -s --format=%ci $first_commit)
+            first_commit=$(git rev-list --max-parents=0 "$branch")
+            first_commit_date=$(git show -s --format=%ci "$first_commit")
             echo "DEBUG: First commit date for branch $branch: $first_commit_date"
           
             # Check if the branch has a PR and whether it has been merged into master
@@ -39,24 +39,23 @@ jobs:
             echo "DEBUG: PR mergeable for branch $branch: $pr_mergeable"
           
             # Get branch owner email from user profile (assuming employee ID is stored in the profile)
-            employee_id=$(git log --format='%ae' --reverse | head -n 1 | sed 's/@.*//')
+            employee_id=$(git log --format='%ae' --reverse "$branch" | head -n 1 | sed 's/@.*//')
             echo "DEBUG: Extracted employee ID for branch $branch: $employee_id"
           
             # Calculate date difference
             days_diff=$(( ( $(date +%s) - $(date +%s -d "$first_commit_date") )/(60*60*24) ))
 
-        
             # Condition 1: No PR exists and first commit is older than 10 days
-            if [[ -z "$pr_exists" && "$days_diff" -lt 10 ]]; then
-            message="Branch $branch has no PR and the first commit is older than 10 days. Please create a pull request."
-            echo "DEBUG: Condition met for no PR and old commit, sending notification."
-            # send_to_symphony "$message"
+            if [[ -z "$pr_exists" && "$days_diff" -ge 10 ]]; then
+              message="Branch $branch has no PR and the first commit is older than 10 days. Please create a pull request."
+              echo "DEBUG: Condition met for no PR and old commit, sending notification."
+              # send_to_symphony "$message"
             fi
-  
+          
             # Condition 2: PR exists but has not been merged into master and first commit is older than 10 days
-            if [[ "$pr_exists" == "OPEN" && "$pr_mergeable" == "true" && "$days_diff" -lt 10 ]]; then
-            message="Branch $branch has an open PR that has not yet been merged into the master branch, and the first commit is older than 10 days. Please review and merge the pull request."
-            echo "DEBUG: Condition met for open PR not merged and old commit, sending notification."
-            # send_to_symphony "$message"
+            if [[ "$pr_exists" == "OPEN" && "$pr_mergeable" == "true" && "$days_diff" -ge 10 ]]; then
+              message="Branch $branch has an open PR that has not yet been merged into the master branch, and the first commit is older than 10 days. Please review and merge the pull request."
+              echo "DEBUG: Condition met for open PR not merged and old commit, sending notification."
+              # send_to_symphony "$message"
             fi
           done <<< "${{ steps.get_branches.outputs.branches }}"
