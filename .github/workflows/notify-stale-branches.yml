@@ -11,51 +11,165 @@ jobs:
         with:
           fetch-depth: 0  # Fetch all history for all branches and tags
 
-      - name: Get all branches
+      - name: Get all branches and default branch
         id: get_branches
         run: |
-          branches=$(git branch -r | grep -v '\->' | sed 's/origin\///')
-          echo "branches<<EOF" >> $GITHUB_OUTPUT
-          echo "$branches" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Check branches and send notifications via Symphony
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          while IFS= read -r branch; do
-            echo "DEBUG: Processing branch: $branch"
+          # Fetch all branches
+          git fetch --all
           
-            first_commit=$(git rev-list --max-parents=0 "$branch")
+          # Get all remote branches and trim leading/trailing spaces
+          branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | grep -v 'HEAD$' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          echo "DEBUG: All branches:"
+          echo "$branches"
+          
+          # Store branches in a file
+          echo "$branches" > all_branches.txt
+          
+          # Set output for number of branches
+          branch_count=$(echo "$branches" | wc -l)
+          echo "branch_count=$branch_count" >> $GITHUB_OUTPUT
+          
+          # Determine default branch
+          default_branch=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          echo "DEBUG: Default branch: $default_branch"
+          echo "default_branch=$default_branch" >> $GITHUB_OUTPUT
+
+      - name: Check branches and prepare notifications
+        id: prepare_notifications
+        env:
+          DEFAULT_BRANCH: ${{ steps.get_branches.outputs.default_branch }}
+          BRANCH_COUNT: ${{ steps.get_branches.outputs.branch_count }}
+        run: |
+          echo "DEBUG: Number of branches: $BRANCH_COUNT"
+          echo "DEBUG: Content of all_branches.txt:"
+          cat all_branches.txt
+          
+          # Function to trim leading and trailing spaces
+          trim() {
+            local var="$*"
+            var="${var#"${var%%[![:space:]]*}"}"
+            var="${var%"${var##*[![:space:]]}"}"   
+            echo -n "$var"
+          }
+          
+          # Function to safely extract email
+          safe_extract_email() {
+            local raw_email="$1"
+            echo "$raw_email" | grep -oE '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b' | head -n 1
+          }
+          
+          notifications=()
+          echo "DEBUG: Starting branch processing"
+          echo "DEBUG: Default branch is $DEFAULT_BRANCH"
+          while IFS= read -r full_branch_name; do
+            full_branch_name=$(trim "$full_branch_name")
+            if [[ -z "$full_branch_name" ]]; then
+              echo "DEBUG: Empty branch name, skipping"
+              continue
+            fi
+          
+            branch=${full_branch_name#origin/}
+            echo "DEBUG: Processing branch: $branch (full name: $full_branch_name)"
+          
+            if [[ "$branch" == "$DEFAULT_BRANCH" ]]; then
+              echo "DEBUG: Skipping default branch $branch"
+              continue
+            fi
+          
+            first_commit=$(git rev-list --max-parents=0 "$full_branch_name" 2>/dev/null || echo "")
+            if [[ -z "$first_commit" ]]; then
+              echo "DEBUG: No commits found for branch $branch, skipping"
+              continue
+            fi
+          
             first_commit_date=$(git show -s --format=%ci "$first_commit")
             echo "DEBUG: First commit date for branch $branch: $first_commit_date"
           
-            # Check if the branch has a PR and whether it has been merged into master
-            pr_info=$(gh pr list --head "$branch" --json state,mergeable --jq '.[]')
-            pr_exists=$(echo "$pr_info" | jq -r '.state')
-            pr_mergeable=$(echo "$pr_info" | jq -r '.mergeable')
+            is_merged=$(git branch --remotes --merged "origin/$DEFAULT_BRANCH" | grep -q "$branch" && echo "true" || echo "false")
+            echo "DEBUG: Is branch $branch merged: $is_merged"
           
-            echo "DEBUG: PR state for branch $branch: $pr_exists"
-            echo "DEBUG: PR mergeable for branch $branch: $pr_mergeable"
+            # Safely get branch owner's email and name
+            raw_email=$(git log -1 --format='%ae' "$full_branch_name")
+            owner_email=$(safe_extract_email "$raw_email")
+            owner_name=$(git log -1 --format='%an' "$full_branch_name")
+            echo "DEBUG: Branch owner for $branch: $owner_name (email safely extracted)"
           
-            # Get branch owner email from user profile (assuming employee ID is stored in the profile)
-            employee_id=$(git log --format='%ae' --reverse "$branch" | head -n 1 | sed 's/@.*//')
-            echo "DEBUG: Extracted employee ID for branch $branch: $employee_id"
-          
-            # Calculate date difference
             days_diff=$(( ( $(date +%s) - $(date +%s -d "$first_commit_date") )/(60*60*24) ))
+            echo "DEBUG: Days since first commit: $days_diff"
 
-            # Condition 1: No PR exists and first commit is older than 10 days
-            if [[ -z "$pr_exists" && "$days_diff" -ge 10 ]]; then
-              message="Branch $branch has no PR and the first commit is older than 10 days. Please create a pull request."
-              echo "DEBUG: Condition met for no PR and old commit, sending notification."
-              # send_to_symphony "$message"
+            if [[ "$is_merged" == "false" && "$days_diff" -ge 10 ]]; then
+              message="Branch $branch has not been merged into $DEFAULT_BRANCH and the first commit is older than 10 days. Please review and consider merging or deleting this branch."
+              notifications+=("$owner_email|$owner_name|$message")
+              echo "DEBUG: Notification added for branch $branch"
+            else
+              echo "DEBUG: No notification needed for branch $branch"
             fi
+          done < all_branches.txt
           
-            # Condition 2: PR exists but has not been merged into master and first commit is older than 10 days
-            if [[ "$pr_exists" == "OPEN" && "$pr_mergeable" == "true" && "$days_diff" -ge 10 ]]; then
-              message="Branch $branch has an open PR that has not yet been merged into the master branch, and the first commit is older than 10 days. Please review and merge the pull request."
-              echo "DEBUG: Condition met for open PR not merged and old commit, sending notification."
-              # send_to_symphony "$message"
-            fi
-          done <<< "${{ steps.get_branches.outputs.branches }}"
+          echo "DEBUG: Total notifications: ${#notifications[@]}"
+          echo "notifications<<EOF" >> $GITHUB_OUTPUT
+          printf '%s\n' "${notifications[@]}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Send notifications
+        env:
+          # Add your notification service credentials here
+          OUTLOOK_CREDENTIALS: ${{ secrets.OUTLOOK_CREDENTIALS }}
+          SYMPHONY_CREDENTIALS: ${{ secrets.SYMPHONY_CREDENTIALS }}
+          TEAMS_CREDENTIALS: ${{ secrets.TEAMS_CREDENTIALS }}
+        run: |
+          # Function to send notification based on user's preferred channel
+          send_notification() {
+            local owner_email="$1"
+            local owner_name="$2"
+            local message="$3"
+          
+            local channel=$(get_user_preferred_channel "$owner_email")
+          
+            case "$channel" in
+              "outlook")
+                send_outlook_email "$owner_email" "$owner_name" "$message"
+                ;;
+              "symphony")
+                send_symphony_message "$owner_email" "$owner_name" "$message"
+                ;;
+              "teams")
+                send_teams_message "$owner_email" "$owner_name" "$message"
+                ;;
+              *)
+                echo "Unknown notification channel for $owner_email"
+                ;;
+            esac
+          }
+
+          # Placeholder functions for different notification channels
+          send_outlook_email() {
+            echo "DEBUG: Sending Outlook email to $1 ($2): $3"
+            # Implement your Outlook email sending logic here
+          }
+
+          send_symphony_message() {
+            echo "DEBUG: Sending Symphony message to $1 ($2): $3"
+            # Implement your Symphony messaging logic here
+          }
+
+          send_teams_message() {
+            echo "DEBUG: Sending Microsoft Teams message to $1 ($2): $3"
+            # Implement your Microsoft Teams messaging logic here
+          }
+
+          get_user_preferred_channel() {
+            # Placeholder function to determine user's preferred channel
+            echo "outlook"  # Default to Outlook for this example
+          }
+
+          # Process and send notifications
+          echo "DEBUG: Starting to process notifications"
+          while IFS= read -r notification; do
+            IFS='|' read -r owner_email owner_name message <<< "$notification"
+            echo "DEBUG: Processing notification for $owner_name (email safely extracted)"
+            send_notification "$owner_email" "$owner_name" "$message"
+          done <<EOF
+          ${{ steps.prepare_notifications.outputs.notifications }}
+          EOF
+          echo "DEBUG: Finished processing notifications"
