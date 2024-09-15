@@ -87,7 +87,7 @@ jobs:
             local body=$(echo "$response" | sed '$d')
             local status_code=$(echo "$response" | tail -n1)
           
-            echo "DEBUG: API Response for $branch (Status Code: $status_code): $body"
+            # echo "DEBUG: API Response for $branch (Status Code: $status_code): $body"
           
             if [[ "$status_code" == "200" ]]; then
               if echo "$body" | jq -e '. | length > 0' > /dev/null; then
