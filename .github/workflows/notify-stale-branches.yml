@@ -5,6 +5,9 @@ on: push
 jobs:
   notify-branch-owners:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -64,7 +67,10 @@ jobs:
             local branch="$1"
             local api_url="https://api.github.com/repos/${REPO}/pulls?head=${REPO%/*}:${branch}&state=all"
             local response=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "$api_url")
-            if echo "$response" | jq -e '.[0]' > /dev/null; then
+            echo "DEBUG: API Response for $branch: $response"
+          
+            # Check if the response is an array and not empty
+            if echo "$response" | jq -e '. | length > 0' > /dev/null; then
               local state=$(echo "$response" | jq -r '.[0].state')
               local merged=$(echo "$response" | jq -r '.[0].merged')
               if [[ "$state" == "open" ]]; then
@@ -77,7 +83,7 @@ jobs:
             else
               echo "NO_PR"
             fi
-          }
+            }
           
           notifications=()
           echo "DEBUG: Starting branch processing"
