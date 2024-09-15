@@ -82,7 +82,7 @@ jobs:
           check_pr_status() {
             local branch="$1"            
             local api_url="https://api.github.com/repos/${REPO}/pulls?head=${REPO%/*}:${branch}&state=all"
-            echo "DEBUG: API URL for $branch: $api_url"
+            # echo "DEBUG: API URL for $branch: $api_url"
             local response=$(curl -s -w "\n%{http_code}" -H "Authorization: token ${GITHUB_TOKEN}" "$api_url")
             local body=$(echo "$response" | sed '$d')
             local status_code=$(echo "$response" | tail -n1)
