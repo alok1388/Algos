@@ -37,6 +37,21 @@ jobs:
           echo "DEBUG: Default branch: $default_branch"
           echo "default_branch=$default_branch" >> $GITHUB_OUTPUT
 
+      - name: Test API Access
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_FOR_PR_CHECKS }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Testing API access..."
+          echo "REPO: $REPO"
+          api_url="https://api.github.com/repos/${REPO}/pulls?state=all"
+          echo "API URL: $api_url"
+          response=$(curl -s -w "\n%{http_code}" -H "Authorization: token ${GITHUB_TOKEN}" "$api_url")
+          body=$(echo "$response" | sed '$d')
+          status_code=$(echo "$response" | tail -n1)
+          echo "API Response (Status Code: $status_code):"
+          echo "$body"
+
       - name: Check branches and prepare notifications
         id: prepare_notifications
         env:
@@ -64,9 +79,9 @@ jobs:
           
           # Function to check PR status using GitHub API
           check_pr_status() {
-            local branch="$1"
-            echo "DEBUG: token is ${GITHUB_TOKEN}"
+            local branch="$1"            
             local api_url="https://api.github.com/repos/${REPO}/pulls?head=${REPO%/*}:${branch}&state=all"
+            echo "DEBUG: API URL for $branch: $api_url"
             local response=$(curl -s -w "\n%{http_code}" -H "Authorization: token ${GITHUB_TOKEN}" "$api_url")
             local body=$(echo "$response" | sed '$d')
             local status_code=$(echo "$response" | tail -n1)
