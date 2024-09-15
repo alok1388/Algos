@@ -131,8 +131,16 @@ jobs:
             days_diff=$(( ( $(date +%s) - $(date +%s -d "$first_commit_date") )/(60*60*24) ))
             echo "DEBUG: Days since first commit: $days_diff"
 
-            if [[ "$is_merged" == "false" && "$days_diff" -ge 10 ]]; then
-              message="Branch $branch has not been merged into $DEFAULT_BRANCH and the first commit is older than 10 days. Please review and consider merging or deleting this branch."
+            if [[ "$is_merged" == "false" && "$days_diff" -ge 2 ]]; then
+              if [[ "$pr_status" == "OPEN" ]]; then
+                message="Branch $branch has an open PR that has not been merged into $DEFAULT_BRANCH, and the first commit is older than 10 days. Please review and consider merging or closing the PR."
+              elif [[ "$pr_status" == "CLOSED" ]]; then
+                message="Branch $branch had a PR that was closed without merging into $DEFAULT_BRANCH. The first commit is older than 10 days. Please review and consider reopening the PR, creating a new PR, or deleting this branch."
+              elif [[ "$pr_status" == "NOT_FOUND" || "$pr_status" == "NO_PR" ]]; then
+                message="Branch $branch has not been merged into $DEFAULT_BRANCH and has no open PR. The first commit is older than 10 days. Please review and consider creating a PR, merging, or deleting this branch."
+              else
+                message="Unable to determine the status of branch $branch. Please review this branch manually."
+              fi
               notifications+=("$owner_email|$owner_name|$message")
               echo "DEBUG: Notification added for branch $branch"
             else
