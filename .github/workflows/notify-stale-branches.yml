@@ -233,6 +233,7 @@ jobs:
           # Process and send notifications
           echo "DEBUG: Starting to process notifications"
           while IFS= read -r notification; do
+            echo "DEBUG: Processing notification: $notification"
             IFS='|' read -r owner_email owner_name message <<< "$notification"
             echo "DEBUG: Processing notification for $owner_name (email safely extracted)"
             send_notification "$owner_email" "$owner_name" "$message"
