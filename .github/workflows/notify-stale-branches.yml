@@ -58,6 +58,7 @@ jobs:
           DEFAULT_BRANCH: ${{ steps.get_branches.outputs.default_branch }}
           BRANCH_COUNT: ${{ steps.get_branches.outputs.branch_count }}
           GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           echo "DEBUG: Number of branches: $BRANCH_COUNT"
           echo "DEBUG: Content of all_branches.txt:"
