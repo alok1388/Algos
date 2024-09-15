@@ -65,6 +65,7 @@ jobs:
           # Function to check PR status using GitHub API
           check_pr_status() {
             local branch="$1"
+            echo "DEBUG: token is ${GITHUB_TOKEN}"
             local api_url="https://api.github.com/repos/${REPO}/pulls?head=${REPO%/*}:${branch}&state=all"
             local response=$(curl -s -w "\n%{http_code}" -H "Authorization: token ${GITHUB_TOKEN}" "$api_url")
             local body=$(echo "$response" | sed '$d')
