@@ -39,7 +39,7 @@ jobs:
 
       - name: Test API Access
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_FOR_PR_CHECKS }}
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           echo "Testing API access..."
