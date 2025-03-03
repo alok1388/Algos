@@ -1,16 +1,16 @@
 package DS.Test;
 
-import javafx.util.Pair;
+
 
 public class StringAlgos {
     public static void main(String[] args)
     {
         StringAlgos algo = new StringAlgos();
-        int res = algo.longestPalindrome("forgeeksskeegfor");
+        int res = algo.longestPalindromeString("forgeeksskeegfor");
         System.out.println(res);
     }
 
-    public int longestPalindrome(String str)
+    public int longestPalindromeString(String str)
     {
         Pair<Integer, Integer> maxP = new Pair<>(Integer.MIN_VALUE, Integer.MIN_VALUE);
         for(int i=1; i<str.length(); i++)
